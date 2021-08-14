@@ -1,0 +1,9 @@
+[webserver]
+10.66.41.11
+10.66.42.150
+
+[logserver]
+10.66.42.160
+
+[all:vars]
+ansible_user=student
