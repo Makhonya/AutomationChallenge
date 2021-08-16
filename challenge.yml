@@ -9,9 +9,15 @@
 
    tasks:
     - name: Check if zabbix-agent is running
-      command: systemctl status zabbix-agent
+      command: pgrep "{{ item.service }}"
+      with_items:
+        - { index: 0, service: zabbix_agent}
+        - { index: 1, service: nginx}
       ignore_errors: yes
-      register: service_zabbix_agent_status
+      register: service_status
+
+    - debug:
+        var: service_status.results[0]
 
     - name: Install, configure and start zabbix-agent
       block:
@@ -47,51 +53,52 @@
             state: started
             enabled: yes
             name: zabbix-agent
-      when: >
-       "'could not be found.' in service_zabbix_agent_status.stdout or
-       'inactive (dead)' in service_zabbix_agent_status.stdout"   
+      when: service_status.results[0].rc != 0
 
-    - name: "Install packages"
-      dnf:
-        name: nginx
-        state: present
+    - name: "Install and configure nginx"
+      block:
+        - name: "Install packages"
+          dnf:
+            name: nginx
+            state: present
 
-    - name: "Copy nginx config file"
-      copy:
-        src: ~/Documents/Python/k8s/nginx.conf
-        dest: /etc/nginx/nginx.conf
-        owner: root
-        group: root
-        force: yes
+        - name: "Copy nginx config file"
+          copy:
+            src: ~/Documents/Python/k8s/nginx.conf
+            dest: /etc/nginx/nginx.conf
+            owner: root
+            group: root
+            force: yes
 
-    - name: "Start/enable nginx"
-      systemd: 
-        state: started
-        enabled: yes
-        name: nginx
+        - name: "Start/enable nginx"
+          systemd: 
+            state: started
+            enabled: yes
+            name: nginx
 
-    - name: "Add http to firewall config"
-      firewalld: 
-        immediate: yes
-        state: enabled
-        service: http
-        permanent: yes
+        - name: "Add http to firewall config"
+          firewalld: 
+            immediate: yes
+            state: enabled
+            service: http
+            permanent: yes
 
-    - name: "Add https to firewall config"
-      firewalld: 
-        immediate: yes
-        state: enabled
-        service: https
-        permanent: yes
+        - name: "Add https to firewall config"
+          firewalld: 
+            immediate: yes
+            state: enabled
+            service: https
+            permanent: yes
 
-    - name: "Copy index file to the nginx server"
-      copy:
-        src: ~/Documents/Python/k8s/index.html
-        dest: /usr/share/nginx/html/index.html
-        owner: root
-        group: root
-        force: yes
-      notify: restart nginx 
+        - name: "Copy index file to the nginx server"
+          copy:
+            src: ~/Documents/Python/k8s/index.html
+            dest: /usr/share/nginx/html/index.html
+            owner: root
+            group: root
+            force: yes
+          notify: restart nginx 
+      when: service_status.results[1].rc != 0
     
     - name: "Install splunk-forwarder"
       script: ~/Documents/Python/k8s/forwarder.sh
