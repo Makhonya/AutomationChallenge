@@ -21,9 +21,6 @@
         name: nginx, wget
         state: present
 
-    - debug:
-        var: service_status.results[0]
-
     - name: Install, configure and start zabbix-agent
       block:
         - name: "Install zabbix repository"
