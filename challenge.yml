@@ -16,6 +16,11 @@
       ignore_errors: yes
       register: service_status
 
+    - name: "Install packages"
+      dnf:
+        name: nginx, wget
+        state: present
+
     - debug:
         var: service_status.results[0]
 
@@ -55,13 +60,8 @@
             name: zabbix-agent
       when: service_status.results[0].rc != 0
 
-    - name: "Install and configure nginx"
+    - name: "Configure nginx"
       block:
-        - name: "Install packages"
-          dnf:
-            name: nginx
-            state: present
-
         - name: "Copy nginx config file"
           copy:
             src: ~/Documents/Python/k8s/nginx.conf
