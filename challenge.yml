@@ -8,24 +8,53 @@
         state: restarted
 
    tasks:
-    - name: "Install zabbix repository"
-      dnf: 
-        name: 'http://repo.zabbix.com/zabbix/3.2/rhel/7/x86_64/zabbix-release-3.2-1.el7.noarch.rpm'
-        state: present
-        disable_gpg_check: yes
+    - name: Check if zabbix-agent is running
+      command: systemctl status zabbix-agent
+      ignore_errors: yes
+      register: service_zabbix_agent_status
+
+    - name: Install, configure and start zabbix-agent
+      block:
+        - name: "Install zabbix repository"
+          dnf: 
+            name: 'http://repo.zabbix.com/zabbix/3.2/rhel/7/x86_64/zabbix-release-3.2-1.el7.noarch.rpm'
+            state: present
+            disable_gpg_check: yes
+        - name: "Install zabbix package"
+          dnf:
+            name: zabbix-agent
+            state: present
+        - name: "Copy zabbix config"
+          copy:
+            src: ~/Documents/Python/k8s/zabbix_agentd.conf
+            dest: /etc/zabbix/zabbix_agentd.conf
+            owner: root
+            group: root
+            force: yes
+        - name: "Add zabbix port 10050 to firewall config"
+          firewalld: 
+            immediate: yes
+            state: enabled
+            port: 10050-10051/tcp
+            permanent: yes
+        - name: "Replace the line with the Hostname"
+          lineinfile: 
+            path: /etc/zabbix/zabbix_agentd.conf
+            regexp: '^Hostname='
+            line: Hostname={{ ansible_facts['nodename'] }}
+        - name: "Start/enable zabbix"
+          systemd: 
+            state: started
+            enabled: yes
+            name: zabbix-agent
+      when: >
+       "'could not be found.' in service_zabbix_agent_status.stdout or
+       'inactive (dead)' in service_zabbix_agent_status.stdout"   
 
     - name: "Install packages"
-      yum:
-        name: nginx, wget, zabbix-agent
+      dnf:
+        name: nginx
         state: present
-
-    - name: "Copy zabbix config"
-      copy:
-        src: ~/Documents/Python/k8s/zabbix_agentd.conf
-        dest: /etc/zabbix/zabbix_agentd.conf
-        owner: root
-        group: root
-        force: yes
 
     - name: "Copy nginx config file"
       copy:
@@ -55,13 +84,6 @@
         service: https
         permanent: yes
 
-    - name: "Add zabbix port 10050 to firewall config"
-      firewalld: 
-        immediate: yes
-        state: enabled
-        port: 10050-10051/tcp
-        permanent: yes
-
     - name: "Copy index file to the nginx server"
       copy:
         src: ~/Documents/Python/k8s/index.html
@@ -70,15 +92,6 @@
         group: root
         force: yes
       notify: restart nginx 
-
-    - name: "Replace the line with the Hostname"
-      lineinfile: 
-        path: /etc/zabbix/zabbix_agentd.conf
-        regexp: '^Hostname='
-        line: Hostname={{ ansible_facts['nodename'] }}
-
-    - name: "Start/enable zabbix"
-      systemd: 
-        state: started
-        enabled: yes
-        name: zabbix-agent
+    
+    - name: "Install splunk-forwarder"
+      script: ~/Documents/Python/k8s/forwarder.sh
