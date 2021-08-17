@@ -8,7 +8,7 @@
         state: restarted
 
    tasks:
-    - name: Check if zabbix-agent is running
+    - name: Check if zabbix-agent and nginx services are running
       command: pgrep "{{ item.service }}"
       with_items:
         - { index: 0, service: zabbix_agent}
